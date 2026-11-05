@@ -4,12 +4,16 @@ from __future__ import annotations
 import argparse
 import json
 import threading
+import os
+import re
+from http.cookies import SimpleCookie
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from consulta import ErroConsulta, consultar_fonte, validar_entradas
+from acompanhamento import Caderno, FalhaAPI
 
 PROJECT = Path(__file__).resolve().parents[1]
 
@@ -20,17 +24,70 @@ class ServidorAmbar(ThreadingHTTPServer):
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def token(self):
+        cookie = SimpleCookie()
+        cookie.load(self.headers.get('Cookie', ''))
+        return cookie['ambar'].value if 'ambar' in cookie else ''
+
+    def acompanhamento(self):
+        path = urlsplit(self.path).path
+        if self.command == 'POST':
+            origem = self.headers.get('Origin')
+            if origem and origem != 'http://' + self.headers.get('Host', ''):
+                raise FalhaAPI(403, 'Origem da requisição recusada.')
+            tamanho = int(self.headers.get('Content-Length', '0'))
+            if not 0 < tamanho <= 8192 or self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
+                raise FalhaAPI(400, 'Envie JSON com até 8192 bytes.')
+            dados = json.loads(self.rfile.read(tamanho))
+            if not isinstance(dados, dict):
+                raise FalhaAPI(400, 'Envie um objeto JSON.')
+        else:
+            dados = {}
+        caderno = self.server.caderno
+        if path in ('/api/conta/cadastro', '/api/conta/login') and self.command == 'POST':
+            token = caderno.autenticar(dados, path.endswith('cadastro'))
+            self.novo_cookie = f'ambar={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800'
+            return {'status': 'autenticado'}
+        usuario = caderno.usuario(self.token())
+        if path == '/api/conta/sair' and self.command == 'POST':
+            caderno.sair(self.token())
+            self.novo_cookie = 'ambar=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0'
+            return {'status': 'encerrado'}
+        if path == '/api/casos':
+            return caderno.listar(usuario) if self.command == 'GET' else caderno.adicionar(usuario, dados)
+        match = re.fullmatch(r'/api/casos/(\d+)/(historico|consultar|revisar)', path)
+        if match:
+            identificador, acao = int(match[1]), match[2]
+            if acao == 'historico' and self.command == 'GET':
+                return caderno.historico(usuario, identificador)
+            if acao in ('consultar', 'revisar') and self.command == 'POST':
+                return getattr(caderno, acao)(usuario, identificador)
+        raise FalhaAPI(404, 'Endpoint inexistente.')
+
+    def responder_acompanhamento(self):
+        try:
+            return self.json_response(200, self.acompanhamento())
+        except FalhaAPI as exc:
+            return self.json_response(exc.status, {'error': str(exc)})
+        except (ValueError, json.JSONDecodeError):
+            return self.json_response(400, {'error': 'JSON ou tamanho inválido.'})
+
     def json_response(self, status, data):
         body = json.dumps(data, ensure_ascii=False).encode('utf-8')
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Cache-Control', 'no-store')
+        if getattr(self, 'novo_cookie', None):
+            self.send_header('Set-Cookie', self.novo_cookie)
+            del self.novo_cookie
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path.startswith(('/api/casos', '/api/conta')):
+            return self.responder_acompanhamento()
         if path == '/api/saude':
             return self.json_response(200, {'engine': 'python', 'status': 'ok'})
         if path == '/runtime-config.js':
@@ -45,6 +102,8 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        if urlsplit(self.path).path.startswith(('/api/casos', '/api/conta')):
+            return self.responder_acompanhamento()
         if urlsplit(self.path).path != '/api/consultar':
             return self.json_response(404, {'error': 'Endpoint inexistente.'})
         try:
@@ -79,8 +138,10 @@ class Handler(SimpleHTTPRequestHandler):
         return self.json_response(200, resultado)
 
 
-def criar_servidor(porta=8092):
-    return ServidorAmbar(('127.0.0.1', porta), partial(Handler, directory=str(PROJECT / 'dist')))
+def criar_servidor(porta=8092, banco=None):
+    server = ServidorAmbar(('127.0.0.1', porta), partial(Handler, directory=str(PROJECT / 'frontend')))
+    server.caderno = Caderno(banco or os.environ.get('AMBAR_DB', str(PROJECT / 'output' / 'ambar.sqlite3')))
+    return server
 
 
 def main():

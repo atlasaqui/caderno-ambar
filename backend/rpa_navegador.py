@@ -38,10 +38,9 @@ def executar(visivel=False, diretorio=Path('output/rpa')):
             page = context.new_page()
             page.set_default_timeout(15000)
             try:
-                page.goto(url, wait_until='domcontentloaded')
-                expect(page.get_by_text('Laboratório Python ativo', exact=True)).to_be_visible()
+                page.goto(url+'/laboratorio.html', wait_until='domcontentloaded')
+                expect(page.get_by_text('02 / Treino sem conta', exact=True)).to_be_visible()
                 passo('Abrir a interface conectada ao backend Python')
-                page.get_by_role('button', name='Explorar sozinho ↗', exact=True).click()
                 page.get_by_role('button', name='+ Adicionar caso', exact=True).click()
                 page.get_by_role('button', name='Adicionar CIV-001 →', exact=True).click()
                 expect(page.locator('.movement > span')).to_have_text('Aguardando agendamento')

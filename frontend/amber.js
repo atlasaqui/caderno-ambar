@@ -3,10 +3,13 @@ const $=id=>document.getElementById(id);
 const runtime=window.AMBAR_RUNTIME || {mode:'browser'};
 if(runtime.mode==='python'){
  const aviso=document.createElement('section');aviso.className='python-mode';
- aviso.innerHTML='<strong>Laboratório Python ativo</strong><span>As consultas deste servidor usam Requests e Beautiful Soup. A fonte continua sendo fictícia.</span>';
+ aviso.className='training-path';
+ aviso.innerHTML='<p><strong>02 / Treino sem conta</strong><br>Aprenda a consultar e comparar um caso fictício. Quando terminar, continue para seu acesso.</p>';
+ const acesso=document.createElement('a');acesso.href='acesso.html?modo=cadastro&guia=1';acesso.className='button outline';acesso.textContent='Próxima etapa: meu acesso →';aviso.append(acesso);
  document.querySelector('main').prepend(aviso);
  document.querySelector('.technical').innerHTML='<summary>Implementação deste laboratório Python</summary><p>O botão Consultar selecionados envia os casos à API local. Requests busca portal.html, Beautiful Soup extrai os campos e Python compara o registro anterior com o atual. O backend devolve o resultado ao painel e registra um log JSONL.</p><p>O script rpa_navegador.py usa Playwright para abrir este site, adicionar e consultar um caso, conferir o antes e depois, marcar a leitura e baixar o CSV. Ele salva um relatório, capturas e um trace. O navegador só é automatizado quando esse script é executado.</p><p>Este servidor é local. A versão pública estática continua usando JavaScript. Não há consulta a tribunais nem dados reais.</p>';
 }
+let guidedCase='CIV-001';
 const catalog=[
  {id:'CIV-001',subject:'Acompanhamento cível',initial:'Aguardando agendamento',date:'14/10/2026',summary:'Descubra uma audiência que foi agendada depois do seu último registro.'},
  {id:'CON-002',subject:'Documento contratual',initial:'Versão inicial recebida',date:'13/10/2026',summary:'Descubra que uma nova versão do documento foi disponibilizada.'},
@@ -40,7 +43,7 @@ function render(){
  document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===activeFilter));
  $('case-rows').innerHTML=shown.map(c=>`<tr><td><input type="checkbox" data-select="${c.id}" aria-label="Selecionar ${c.id}" ${selected.has(c.id)?'checked':''} ${busy?'disabled':''}></td><td><strong>${c.id}</strong><small>${c.subject}</small></td><td class="movement"><span>${escapeHTML(c.current)}</span><small>${c.consulted?'Lido na fonte: '+escapeHTML(c.sourceDate):'Registro inicial · '+c.date}</small></td><td><span class="badge ${c.error?'error':c.reviewed?'reviewed':c.consulted?'novelty':'neutral'}">${statusOf(c)}</span></td><td><button class="text-button" data-detail="${c.id}" ${busy?'disabled':''}>${c.consulted?'Ver mudança':'Ver registro'} ↗</button></td></tr>`).join('');
 }
-function renderCatalog(){$('catalog-cards').innerHTML=catalog.map(c=>{const added=cases.some(p=>p.id===c.id);return `<article class="catalog-card"><div><span class="eyebrow">${c.id} / DADOS FICTÍCIOS</span><h3>${c.subject}</h3><p>${c.summary}</p><small>Registro inicial: ${c.initial}</small></div><button class="button ${added?'outline':'dark'}" data-add="${c.id}" ${added||guideIndex>=0&&c.id!=='CIV-001'?'disabled':''}>${added?'Já adicionado':'Adicionar '+c.id+' →'}</button></article>`;}).join('');}
+function renderCatalog(){$('catalog-cards').innerHTML=catalog.map(c=>{const added=cases.some(p=>p.id===c.id);return `<article class="catalog-card"><div><span class="eyebrow">${c.id} / DADOS FICTÍCIOS</span><h3>${c.subject}</h3><p>${c.summary}</p><small>Registro inicial: ${c.initial}</small></div><button class="button ${added?'outline':'dark'}" data-add="${c.id}" ${added||guideIndex>=0&&c.id!==guidedCase?'disabled':''}>${added?'Já adicionado':'Adicionar '+c.id+' →'}</button></article>`;}).join('');}
 function log(title,description){history.unshift({time:new Date().toLocaleTimeString('pt-BR'),title,description});renderHistory();}
 function renderHistory(){$('history-list').innerHTML=history.length?history.map(h=>`<article><time>${h.time}</time><div><h2>${escapeHTML(h.title)}</h2><p>${escapeHTML(h.description)}</p></div></article>`).join(''):'<div class="empty-history"><h2>Nenhuma consulta ainda.</h2><p>Adicione e consulte um caso para ver o registro aqui.</p></div>';}
 function moveCoachToBody(){document.body.append($('coach'));}
@@ -78,23 +81,83 @@ function clearHighlight(){document.querySelectorAll('.spotlight').forEach(el=>{e
 function updateCoach(){
  clearHighlight();moveCoachToBody();if(guideIndex<0){$('coach').hidden=true;document.body.classList.remove('training');return;}
  const step=guideSteps[guideIndex];if(!step)return;$('coach').hidden=false;document.body.classList.add('training');$('coach-progress').textContent=`TREINO ATIVO · ${guideIndex+1} DE ${guideSteps.length}`;$('coach-fill').style.width=`${(guideIndex+1)/guideSteps.length*100}%`;$('coach-title').textContent=step.title;$('coach-description').textContent=step.description;$('coach-action').textContent=step.action;
- const target=document.querySelector(step.target);if(!target)return;target.classList.add('spotlight');target.setAttribute('aria-describedby','coach-description');const dialog=target.closest('dialog');if(dialog?.open){dialog.append($('coach'));$('coach').classList.add('inside-dialog');}else $('coach').classList.remove('inside-dialog');requestAnimationFrame(()=>{target.scrollIntoView({block:'center',behavior:'smooth'});});
+ const target=document.querySelector(step.target);if(!target)return;target.classList.add('spotlight');target.setAttribute('aria-describedby','coach-description');const dialog=target.closest('dialog');if(dialog?.open){dialog.insertBefore($('coach'),dialog.querySelector('#source-back,#mark-reviewed,#detail-back'));$('coach').classList.add('inside-dialog');}else $('coach').classList.remove('inside-dialog');requestAnimationFrame(()=>{target.scrollIntoView({block:'center',behavior:'smooth'});});
 }
-function advance(event,id){if(guideIndex<0)return;if(id&&id!=='CIV-001')return;if(guideSteps[guideIndex].event!==event)return;guideIndex++;if(guideIndex===guideSteps.length){guideIndex=-1;$('tour-complete').hidden=false;updateCoach();notify('Treino concluído: você fez uma consulta e conferiu a mudança.');}else updateCoach();}
+function advance(event,id){if(guideIndex<0)return;if(id&&id!==guidedCase)return;if(guideSteps[guideIndex].event!==event)return;guideIndex++;if(guideIndex===guideSteps.length){guideIndex=-1;$('tour-complete').hidden=false;updateCoach();notify('Treino concluído: você fez uma consulta e conferiu a mudança.');}else updateCoach();}
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();const page=b.dataset.page;if(guideIndex>=0&&!['history','docs'].includes(guideSteps[guideIndex].event)){notify('Treino em andamento. Use o controle destacado ou escolha “Sair”.');return;}showPage(page);advance(page);updateCoach();}));
 document.querySelectorAll('[data-start]').forEach(b=>b.addEventListener('click',()=>{if(busy){notify('Aguarde a consulta terminar.');return;}if(guideIndex>=0){updateCoach();return;}$('start-dialog').showModal();}));
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>closeDialog(b.dataset.close)));
-$('start-training').addEventListener('click',()=>{$('start-dialog').close();cases=[];selected.clear();history=[];activeFilter='all';$('search').value='';$('result-banner').hidden=true;$('tour-complete').hidden=true;$('query-progress').textContent='Fonte: portal fictício deste projeto';guideIndex=0;render();renderHistory();showPage('cases');updateCoach();});
+$('start-training').addEventListener('click',()=>{$('start-dialog').close();configurarCasoGuiado();cases=[];selected.clear();history=[];activeFilter='all';$('search').value='';$('result-banner').hidden=true;$('tour-complete').hidden=true;$('query-progress').textContent='Fonte: portal fictício deste projeto';guideIndex=0;render();renderHistory();showPage('cases');updateCoach();});
 $('exit-training').addEventListener('click',()=>{guideIndex=-1;updateCoach();renderCatalog();notify('Guia encerrado. Sua lista foi mantida para explorar livremente.');});
 $('open-catalog').addEventListener('click',()=>{renderCatalog();$('catalog').showModal();advance('catalog');});
 $('catalog-cards').addEventListener('click',e=>{const button=e.target.closest('[data-add]');if(!button)return;const template=catalog.find(c=>c.id===button.dataset.add);if(cases.some(c=>c.id===template.id))return;cases.push({...template,current:template.initial,before:template.initial,consulted:false,changed:false,reviewed:false,error:false});moveCoachToBody();$('catalog').close();render();notify(`${template.id} adicionado. Selecione-o para consultar.`);advance('add',template.id);});
-$('case-rows').addEventListener('change',e=>{const id=e.target.dataset.select;if(!id)return;if(e.target.checked)selected.add(id);else selected.delete(id);render();if(selected.has('CIV-001'))advance('select','CIV-001');else {if(guideIndex>=3&&guideIndex<=5&&!selected.has('CIV-001'))guideIndex=2;updateCoach();}});
+$('case-rows').addEventListener('change',e=>{const id=e.target.dataset.select;if(!id)return;if(e.target.checked)selected.add(id);else selected.delete(id);render();if(selected.has(guidedCase))advance('select',guidedCase);else {if(guideIndex>=3&&guideIndex<=5&&!selected.has(guidedCase))guideIndex=2;updateCoach();}});
 $('case-rows').addEventListener('click',e=>{const button=e.target.closest('[data-detail]');if(button)openDetail(button.dataset.detail);});
-$('source-open').addEventListener('click',()=>{$('source').showModal();advance('source');});$('source-back').addEventListener('click',()=>closeDialog('source'));$('detail-back').addEventListener('click',()=>closeDialog('detail'));
+let fonteRequest=0;
+async function carregarFonteTreino(){
+ const requestId=++fonteRequest;
+ $('source-preview').replaceChildren();$('source-status').textContent='Carregando a fonte de treino…';$('source-retry').hidden=true;
+ try{
+  const response=await fetch('portal.html',{cache:'no-store',signal:AbortSignal.timeout(12000)});
+  if(!response.ok)throw new Error('A fonte respondeu HTTP '+response.status+'.');
+  const pagina=new DOMParser().parseFromString(await response.text(),'text/html');
+  if(requestId!==fonteRequest)return;
+  const registros=[...pagina.querySelectorAll('article[data-case]')];
+  if(!registros.length)throw new Error('Não foram encontrados registros na fonte.');
+  const codigo=guideIndex>=0?guidedCase:[...selected][0];
+  for(const registro of registros){
+   const card=document.createElement('article');card.className='source-record';
+   if(registro.dataset.case===codigo)card.classList.add('selected-source');
+   for(const [seletor,tag] of [['h2','h3'],['.movement','p'],['.date','small'],['.note','p']]){
+    const campo=registro.querySelector(seletor);if(!campo)continue;const node=document.createElement(tag);node.textContent=campo.textContent;card.append(node);
+   }
+   $('source-preview').append(card);
+  }
+  $('source-status').textContent='Fonte fictícia carregada. O exemplo selecionado está destacado.';
+  const exemplo=catalog.find(c=>c.id===codigo);
+  $('source').querySelector('.dialog-intro').textContent=exemplo?exemplo.subject+': compare a informação da fonte com o registro inicial “'+exemplo.initial+'”.':'Estes são os três registros fictícios usados no treino. A consulta lê esta mesma fonte.';
+  if($('source').open)advance('source');
+ }catch(error){
+  if(requestId!==fonteRequest)return;
+  $('source-status').textContent='Não foi possível carregar a fonte. '+error.message+' Você pode tentar novamente ou abrir a fonte em outra aba.';
+  $('source-retry').hidden=false;
+ }
+}
+$('source-open').addEventListener('click',()=>{$('source').showModal();carregarFonteTreino();});
+$('source-retry').addEventListener('click',carregarFonteTreino);
+$('source-back').addEventListener('click',()=>closeDialog('source'));$('detail-back').addEventListener('click',()=>closeDialog('detail'));
 $('mark-reviewed').addEventListener('click',()=>{const c=cases.find(c=>c.id===detailId);if(!c||!c.consulted)return;c.reviewed=true;$('mark-reviewed').disabled=true;$('mark-reviewed').textContent='✓ Conferido por você';log(`${c.id}: leitura conferida`,'A conferência registra sua leitura. Nenhuma ação foi realizada em sistema judicial.');render();advance('review',c.id);});
 $('consult').addEventListener('click',consult);$('export').addEventListener('click',exportCSV);
-$('search').addEventListener('input',()=>{render();if($('search').value.trim().toUpperCase()==='CIV-001')advance('search');});
+$('search').addEventListener('input',()=>{render();if($('search').value.trim().toUpperCase()===guidedCase)advance('search');});
 document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{activeFilter=b.dataset.filter;render();if(activeFilter==='updated')advance('filter');}));
 // Escape keeps the guide recoverable instead of leaving it attached to a closed dialog.
 ['catalog','source','detail'].forEach(id=>$(id).addEventListener('cancel',e=>{e.preventDefault();closeDialog(id);}));
+
+const guiaBase=guideSteps.map(e=>({...e}));
+const escolhaTreino=document.createElement('select');escolhaTreino.id='training-case-choice';
+const labelTreino=document.createElement('label');labelTreino.textContent='Escolha o que quer aprender';labelTreino.append(escolhaTreino);
+catalog.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.subject;escolhaTreino.append(o);});
+$('start-training').before(labelTreino);$('start-title').textContent='Escolha uma situação e aprenda usando.';
+$('start-dialog').querySelectorAll('p:not(.eyebrow)').forEach((p,i)=>p.textContent=i===0?'O guia acompanha o exemplo escolhido: cível, contratual ou trabalhista.':'Você adiciona, seleciona, consulta, compara e registra a leitura. O guia avança com suas ações.');
+$('start-dialog').querySelector('img')?.remove();
+function configurarCasoGuiado(){
+ guidedCase=escolhaTreino.value;
+ const c=catalog.find(c=>c.id===guidedCase);
+ const atual={'CIV-001':'Audiência agendada para 22/10 às 14h','CON-002':'Nova versão do contrato disponibilizada','TRA-003':'Documento recebido; data de referência não informada'}[guidedCase];
+ const passos=JSON.parse(JSON.stringify(guiaBase).replaceAll('CIV-001',guidedCase));
+ passos[1].title='Adicione o exemplo escolhido.';passos[1].description=c.summary+' Registro inicial: '+c.initial;
+ passos[4].title='Compare o que a fonte informa.';passos[4].description='A fonte de treino informa: '+atual+'.';
+ passos[6].description='O resultado recebido foi: '+atual+'. Abra o detalhe para comparar com o registro anterior.';
+ passos[7].description=guidedCase==='TRA-003'?'A fonte não informa a data de referência. Conferir registra sua leitura; a informação ausente continua exigindo verificação.':'Veja o registro anterior e o resultado encontrado. Conferir registra leitura, não execução de uma providência.';
+ guideSteps.splice(0,guideSteps.length,...passos);
+}
+
 render();renderHistory();
+// Esta página é o treino; a apresentação fica em index.html.
+showPage('cases');
+document.querySelectorAll('.brand img').forEach(img=>img.remove());
+document.querySelectorAll('.brand').forEach(a=>{a.href='index.html';a.removeAttribute('data-page');a.replaceWith(a.cloneNode(true));});
+document.querySelector('header [data-page="home"]')?.remove();
+const voltar=document.createElement('a');voltar.href='index.html';voltar.textContent='← Apresentação';voltar.className='text-button';document.querySelector('header').prepend(voltar);
+const continuar=document.createElement('a');continuar.href='acesso.html?modo=cadastro&guia=1';continuar.className='button dark';continuar.textContent='Continuar: criar meu acesso →';$('tour-complete').append(continuar);
+if(new URLSearchParams(location.search).get('treino')==='1')document.querySelector('[data-start]').click();

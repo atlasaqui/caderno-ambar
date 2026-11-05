@@ -1,0 +1,6 @@
+{
+  "name": "caderno-ambar-ui-checks",
+  "private": true,
+  "scripts": { "test:ui": "node --test tests/ui.test.cjs tests/percurso.test.cjs tests/treino.test.cjs" },
+  "devDependencies": { "jsdom": "26.1.0" }
+}

@@ -1,0 +1,15 @@
+{
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "node_modules": true,
+    ".venv": true,
+    "tmp": true
+  },
+  "search.exclude": {
+    "node_modules": true,
+    ".venv": true,
+    "tmp": true,
+    "output": true
+  }
+}

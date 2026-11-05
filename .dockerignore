@@ -1,0 +1,10 @@
+.git
+.venv
+output
+.env
+*.sqlite3
+__pycache__
+node_modules
+tmp
+documentacao
+.vscode

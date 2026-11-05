@@ -11,7 +11,7 @@ O laboratório usa a mesma aparência e os mesmos casos fictícios do site. Não
 
 ## 1. Preparar o ambiente uma vez
 
-Abra um terminal na pasta que contém `requirements.txt`, `dist` e `laboratorio`. Requer Python 3.10 ou mais recente. A execução verificada usou Python 3.12.
+Abra um terminal na pasta que contém `requirements.txt`, `frontend` e `backend`. Requer Python 3.10 ou mais recente. A execução verificada usou Python 3.12.
 
 ```powershell
 python -m venv .venv
@@ -24,7 +24,7 @@ Não é necessário ativar a venv: os comandos usam diretamente o Python dela. V
 ## 2. Usar a consulta Python pelo site
 
 ```powershell
-.\.venv\Scripts\python.exe laboratorio\servidor.py
+.\.venv\Scripts\python.exe backend\servidor.py
 ```
 
 Abra **http://127.0.0.1:8092**. A faixa “Laboratório Python ativo” identifica o modo correto.
@@ -46,7 +46,7 @@ Para encerrar o servidor, pressione Ctrl+C no terminal.
 Deixe o servidor do passo anterior aberto. Em um segundo terminal, na mesma pasta:
 
 ```powershell
-.\.venv\Scripts\python.exe laboratorio\consulta.py
+.\.venv\Scripts\python.exe backend\consulta.py
 ```
 
 Leia o JSON mostrado no terminal e salvo em `output/consulta-python.json`:
@@ -61,7 +61,7 @@ Leia o JSON mostrado no terminal e salvo em `output/consulta-python.json`:
 
 O relatório completo também inclui o código do caso, as versões das bibliotecas, o horário, o endereço da fonte e seu hash.
 
-Abra `laboratorio/consulta.py` e acompanhe estas funções:
+Abra `backend/consulta.py` e acompanhe estas funções:
 
 1. `validar_entradas`: confere os códigos, os textos anteriores e as duplicidades.
 2. `consultar_fonte`: usa `sessao.get(...)` de **Requests** para buscar a página. Verifica status e limita o tempo de espera.
@@ -71,7 +71,7 @@ Abra `laboratorio/consulta.py` e acompanhe estas funções:
 **Experimento:** repita a consulta informando como registro anterior o próprio texto atual:
 
 ```powershell
-.\.venv\Scripts\python.exe laboratorio\consulta.py --anterior "Audiência agendada para 22/10 às 14h" --saida output\sem-mudanca.json
+.\.venv\Scripts\python.exe backend\consulta.py --anterior "Audiência agendada para 22/10 às 14h" --saida output\sem-mudanca.json
 ```
 
 Agora `changed` deve ser `false`. Você comprovou que a atualização é calculada, não inventada.
@@ -81,12 +81,12 @@ Agora `changed` deve ser `false`. Você comprovou que a atualização é calcula
 Este comando inicia seu próprio servidor, abre o Chromium e realiza as ações. Não depende de manter o servidor anterior aberto.
 
 ```powershell
-.\.venv\Scripts\python.exe laboratorio\rpa_navegador.py --visivel
+.\.venv\Scripts\python.exe backend\rpa_navegador.py --visivel
 ```
 
 Observe: abrir a interface → adicionar → selecionar → consultar → comparar → conferir → buscar → filtrar → baixar o CSV → abrir o histórico. A janela fecha quando a execução termina.
 
-Abra `laboratorio/rpa_navegador.py`:
+Abra `backend/rpa_navegador.py`:
 
 - `chromium.launch(...)` inicia o navegador.
 - `get_by_role(...).click()` aciona botões identificados pelo nome.
@@ -98,7 +98,7 @@ Abra `laboratorio/rpa_navegador.py`:
 O modo sem janela, útil para repetição automática, é:
 
 ```powershell
-.\.venv\Scripts\python.exe laboratorio\rpa_navegador.py
+.\.venv\Scripts\python.exe backend\rpa_navegador.py
 ```
 
 Evidências geradas em `output/rpa/`:
@@ -118,7 +118,7 @@ Para abrir o trace:
 ## 5. Verificar os cenários de falha
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s laboratorio -p "test_*.py" -v
+.\.venv\Scripts\python.exe -m unittest discover -s backend -p "test_*.py" -v
 ```
 
 São sete verificações: HTTP real e extração, segunda consulta sem mudança, HTTP 404, campo ausente, entradas inválidas, API com JSON inválido e configuração Python ativa.
@@ -126,7 +126,7 @@ São sete verificações: HTTP real e extração, segunda consulta sem mudança,
 **Experimento manual:** com o servidor aberto, rode:
 
 ```powershell
-.\.venv\Scripts\python.exe laboratorio\consulta.py --url http://127.0.0.1:8092/nao-existe.html
+.\.venv\Scripts\python.exe backend\consulta.py --url http://127.0.0.1:8092/nao-existe.html
 ```
 
 O programa deve falhar com HTTP 404. Não deve dizer que não houve movimentação: falha de consulta e ausência de mudança são situações diferentes.
